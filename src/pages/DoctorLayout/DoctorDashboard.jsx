@@ -6,137 +6,202 @@ import {
   Calendar, 
   LogOut,
   Menu,
-  X
+  X,
+  Stethoscope
 } from "lucide-react";
 import { appointmentService } from "../../services/appointmentsService";
-
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { setAppointments } from "../../store/appointmentSlice";
 import { addDoctor } from "../../store/doctorSlice";
+import { GlassCard, GlassButton, LoadingOverlay } from "../../components/common";
+import toast from 'react-hot-toast';
 
 const DoctorDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const dispatch = useDispatch();
+  const { user } = useSelector((state) => state.auth);
 
   React.useEffect(() => {  
-      const fetchAppointments = async () => {
-        try {
-          const res = await appointmentService.getAppointments();
-          dispatch(setAppointments(res.data || []));
-
-          const resP = await authService.getUserProfile();
-          dispatch(addDoctor(resP.data));
-        } catch (err) {
-          console.error("Error fetching appointments:", err);
-        }
-      };
-      fetchAppointments();
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const [appointmentsRes, profileRes] = await Promise.all([
+          appointmentService.getAppointments(),
+          authService.getUserProfile()
+        ]);
+        
+        dispatch(setAppointments(appointmentsRes.data || []));
+        dispatch(addDoctor(profileRes.data));
+        toast.success('Dashboard loaded successfully');
+      } catch (err) {
+        console.error("Error fetching data:", err);
+        toast.error('Failed to load dashboard data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
   }, [dispatch]);
   
   const handleLogout = () => {
     authService.logout('doctor');
+    toast.success('Logged out successfully');
     navigate("/");
   };
 
   const navLinks = [
     {
-      to: "/doctor-dashboard/profile",
-      icon: UserCircle,
-      label: "Profile"
-    },
-    {
       to: "/doctor-dashboard/appointments",
       icon: Calendar,
-      label: "Appointments"
+      label: "Appointments",
+      color: "#06beb6"
+    },
+    {
+      to: "/doctor-dashboard/profile",
+      icon: UserCircle,
+      label: "Profile",
+      color: "#48b1bf"
     },
   ];
 
   const isActive = (path) => location.pathname === path;
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-gray-900">Doctor Dashboard</h1>
-            </div>
-
-            {/* Mobile menu button */}
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
-            >
-              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-4">
-              {navLinks.map(({ to, icon: Icon, label }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-150 
-                    ${isActive(to)
-                      ? 'bg-blue-50 text-blue-600'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
-                >
-                  <Icon size={18} className="mr-2" />
-                  {label}
-                </Link>
-              ))}
-              <button
-                onClick={handleLogout}
-                className="flex items-center px-4 py-2 rounded-lg text-sm font-medium
-                         text-red-600 hover:bg-red-50 transition-colors duration-150"
-              >
-                <LogOut size={18} className="mr-2" />
-                Logout
-              </button>
-            </nav>
-          </div>
+  const NavItem = ({ item, index }) => (
+    <Link key={item.to} to={item.to}>
+      <div
+        style={{ transitionDelay: `${index * 50}ms` }}
+        className={`group flex items-center px-4 py-3 rounded-xl transition-all duration-300 hover-lift
+          ${isActive(item.to) 
+            ? 'glass text-white shadow-lg' 
+            : 'hover:glass-dark hover:text-white hover:border hover:border-gray-800/20'
+          }
+          ${isSidebarOpen ? "justify-start" : "justify-center"} border border-transparent`}
+      >
+        <div className={`p-2 rounded-lg transition-colors duration-300 ${
+          isActive(item.to) ? 'bg-white/20' : 'group-hover:bg-white/10'
+        }`}>
+          <item.icon size={20} className="transition-transform duration-300 group-hover:scale-110" />
         </div>
+        {isSidebarOpen && (
+          <span className="ml-3 font-medium transition-all duration-300">
+            {item.label}
+          </span>
+        )}
+      </div>
+    </Link>
+  );
 
-        {/* Mobile Navigation */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-200 bg-white">
-            <div className="px-2 pt-2 pb-3 space-y-1">
-              {navLinks.map(({ to, icon: Icon, label }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  className={`flex items-center px-3 py-2 rounded-md text-base font-medium
-                    ${isActive(to)
-                      ? 'bg-blue-50 text-blue-600'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
-                  onClick={() => setIsMobileMenuOpen(false)}
+  return (
+    <div className="h-screen w-full flex bg-gray-50 relative overflow-hidden">
+      {/* Background */}
+      <div className="absolute inset-0 gradient-doctor opacity-5"></div>
+      
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div className={`
+        relative transition-all duration-500 ease-out flex-shrink-0 z-50
+        ${isSidebarOpen ? "w-72" : "w-20"}
+        ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+        fixed lg:relative h-full gradient-doctor
+      `}>
+        <GlassCard className="h-full rounded-none lg:rounded-r-3xl" background="glass-dark" padding="p-0">
+          <div className="h-full flex flex-col text-white">
+            {/* Header */}
+            <div className="p-6 border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="p-2 rounded-xl hover:bg-white/10 transition-all duration-300 hover:scale-105"
                 >
-                  <Icon size={18} className="mr-2" />
-                  {label}
-                </Link>
+                  <Menu size={24} className={`transition-transform duration-500 ${
+                    isSidebarOpen ? "" : "rotate-180"
+                  }`} />
+                </button>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 rounded-xl hover:bg-white/10 transition-all duration-300 lg:hidden"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              {isSidebarOpen && (
+                <div className="mt-4 animate-fadeInUp">
+                  <h2 className="text-xl font-bold">Doctor Panel</h2>
+                  <p className="text-white/70 text-sm">Medical Dashboard</p>
+                </div>
+              )}
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex-1 px-4 py-6 space-y-4 overflow-y-auto">
+              {navLinks.map((item, index) => (
+                <NavItem key={item.to} item={item} index={index} />
               ))}
-              <button
+            </nav>
+
+            {/* Bottom Section */}
+            <div className="border-t border-white/10 p-4">
+              {/* Doctor Info */}
+              <div className={`flex items-center mb-4 transition-all duration-300 ${
+                isSidebarOpen ? "" : "justify-center"
+              }`}>
+                <div className="w-10 h-10 rounded-xl gradient-doctor flex items-center justify-center shadow-lg">
+                  <Stethoscope className="text-white" size={20} />
+                </div>
+                {isSidebarOpen && (
+                  <div className="ml-3 animate-fadeInUp">
+                    <p className="text-sm font-medium">{user?.name || 'Doctor'}</p>
+                    <p className="text-xs text-white/60">ID: {user?.loginId || 'Loading...'}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Logout Button */}
+              <div
+                className={`group flex items-center px-4 py-3 rounded-xl hover:bg-red-500/80 
+                  transition-all duration-300 hover-lift cursor-pointer
+                  ${isSidebarOpen ? "justify-start" : "justify-center"}`}
                 onClick={handleLogout}
-                className="w-full flex items-center px-3 py-2 rounded-md text-base font-medium
-                         text-red-600 hover:bg-red-50"
               >
-                <LogOut size={18} className="mr-2" />
-                Logout
-              </button>
+                <LogOut size={20} className="text-red-600 group-hover:text-white transition-colors duration-300" />
+                {isSidebarOpen && (
+                  <span className="ml-3 text-red-600 group-hover:text-white font-medium transition-colors duration-300">
+                    Logout
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-        )}
-      </header>
+        </GlassCard>
+      </div>
+
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setIsMobileMenuOpen(true)}
+        className="fixed top-4 left-4 z-30 p-3 glass-dark rounded-xl text-white lg:hidden hover:scale-105 transition-transform duration-300"
+      >
+        <Menu size={24} />
+      </button>
 
       {/* Main Content */}
-      <main className="p-4 sm:p-6 lg:p-8">
-        <Outlet />
-      </main>
+      <div className="flex-1 relative z-10">
+        <LoadingOverlay isLoading={isLoading} message="Loading dashboard...">
+          <div className="h-full overflow-auto">
+            <Outlet />
+          </div>
+        </LoadingOverlay>
+      </div>
     </div>
   );
 };

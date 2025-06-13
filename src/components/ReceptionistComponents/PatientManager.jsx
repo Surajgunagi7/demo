@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Search, UserPlus, Pencil, Save, Phone, Mail, Info, Calendar, HeartPulse, AlertCircle } from 'lucide-react';
+import { Search, UserPlus, Pencil, Save, Phone, Mail, Info, Calendar, HeartPulse, AlertCircle, User } from 'lucide-react';
 import { patientService } from '../../services/patientService';
+import { GlassCard, GlassButton, GlassInput } from '../common';
+import toast from 'react-hot-toast';
 
 const initialForm = {
   name: '',
@@ -22,8 +24,10 @@ const PatientManager = () => {
   const [notFound, setNotFound] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSearch = async () => {
+    setIsLoading(true);
     try {
       const response = await patientService.searchPatientByIdOrPhone({ phone: phone.trim() });
 
@@ -40,15 +44,20 @@ const PatientManager = () => {
         setNotFound(false);
         setShowRegisterForm(false);
         setEditMode(false);
+        toast.success('Patient found successfully!');
       } else {
         console.log("Patient not found");
         setNotFound(true);
         setShowRegisterForm(true);
         setPatient(null);
         setFormData({ ...initialForm, phone });
+        toast.error('Patient not found. Please register them.');
       }
     } catch (err) {
       console.error(err);
+      toast.error('Error searching for patient');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -69,160 +78,296 @@ const PatientManager = () => {
   };
 
   const handleEditSave = async () => {
-  try {
-    const updated = await patientService.updatePatient(patient._id, formData);
-    if (updated?.data) {
-      // Reset all UI state to only show search and register
-      setPatient(null);
-      setFormData(initialForm);
-      setEditMode(false);
-      setShowRegisterForm(false);
-      setNotFound(false);
+    setIsLoading(true);
+    try {
+      const updated = await patientService.updatePatient(patient._id, formData);
+      if (updated?.data) {
+        setPatient(null);
+        setFormData(initialForm);
+        setEditMode(false);
+        setShowRegisterForm(false);
+        setNotFound(false);
+        toast.success('Patient updated successfully!');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to update patient');
+    } finally {
+      setIsLoading(false);
     }
-  } catch (err) {
-    console.error(err);
-  }
-};
+  };
 
-
-
-const handleRegister = async () => {
-  try {
-    const response = await patientService.createOrFindPatient(formData);
-    if (response?.data) {
-      // After successful registration, clear everything and go back to search view
-      setPatient(null);
-      setFormData(initialForm);
-      setShowRegisterForm(false);
-      setNotFound(false);
-      setPhone(''); // optional: clears phone input field
+  const handleRegister = async () => {
+    setIsLoading(true);
+    try {
+      const response = await patientService.createOrFindPatient(formData);
+      if (response?.data) {
+        setPatient(null);
+        setFormData(initialForm);
+        setShowRegisterForm(false);
+        setNotFound(false);
+        setPhone('');
+        toast.success('Patient registered successfully!');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to register patient');
+    } finally {
+      setIsLoading(false);
     }
-  } catch (err) {
-    console.error(err);
-  }
-};
-
-
-
+  };
 
   return (
-    <div className="max-w-4xl mx-auto mt-12 bg-white rounded-2xl p-8 space-y-8">
-      <h2 className="text-3xl font-bold text-center">Patient Management</h2>
-
-      {/* Search Section */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-center">
-        <input
-          type="text"
-          placeholder="Enter phone number"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          className="w-full md:w-1/2 px-4 py-2 border rounded-lg focus:outline-none focus:ring focus:border-blue-400"
-        />
-        <button
-          onClick={handleSearch}
-          className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition">
-          <Search size={18} /> Search
-        </button>
-        <button
-          onClick={() => {
-            setFormData(initialForm);
-            setPatient(null);
-            setEditMode(false);
-            setShowRegisterForm(true);
-            setNotFound(false);
-          }}
-          className="flex items-center gap-2 bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition">
-          <UserPlus size={18} /> Register
-        </button>
-      </div>
-
-      {notFound && (
-        <div className="flex items-center gap-2 text-red-600 font-medium">
-          <AlertCircle size={20} />
-          Patient not found. Please register them.
-        </div>
-      )}
-
-      {/* Patient View */}
-      {patient && !editMode && (
-        <div className="border-t pt-6 space-y-4">
-          <h3 className="text-xl font-semibold">Patient Details</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <InfoRow icon={<Info />} label="ID" value={patient.patientId} />
-            <InfoRow icon={<Phone />} label="Phone" value={patient.phone} />
-            <InfoRow icon={<Info />} label="Name" value={patient.name} />
-            <InfoRow icon={<Mail />} label="Email" value={patient.email} />
-            <InfoRow icon={<Calendar />} label="Age" value={patient.age} />
-            <InfoRow icon={<Info />} label="Gender" value={patient.gender} />
-            <InfoRow icon={<HeartPulse />} label="Medical History" value={patient.medicalHistory} />
-            <InfoRow
-              icon={<Phone />}
-              label="Emergency Contact"
-              value={`${patient.emergencyContact?.name || '-'}, ${patient.emergencyContact?.phone || '-'}`}
-            />
+    <div className="min-h-screen bg-gray-50 relative">
+      {/* Background */}
+      <div className="absolute inset-0 gradient-receptionist opacity-5"></div>
+      
+      <div className="relative z-10 p-6">
+        <GlassCard className="max-w-4xl mx-auto animate-fadeInUp">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Patient Management</h2>
+            <p className="text-gray-600">Search, register, and manage patient information</p>
           </div>
-          <button
-            onClick={() => {
-              setEditMode(true);
-              setFormData({
-                ...patient,
-                emergencyContact: {
-                  name: patient.emergencyContact?.name || '',
-                  phone: patient.emergencyContact?.phone || ''
-                }
-              });
-            }}
-            className="mt-4 bg-yellow-500 text-white px-4 py-2 rounded-lg flex items-center gap-1 hover:bg-yellow-600 transition">
-            <Pencil size={18} /> Edit
-          </button>
-        </div>
-      )}
 
-      {/* Register or Edit Form */}
-      {(editMode || showRegisterForm) && (
-        <PatientForm
-          formData={formData}
-          handleChange={handleChange}
-          onSubmit={editMode ? handleEditSave : handleRegister}
-          submitText={editMode ? 'Save' : 'Register'}
-          icon={editMode ? <Save /> : <UserPlus />}
-        />
-      )}
+          {/* Search Section */}
+          <div className="mb-8">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <GlassInput
+                  icon={Search}
+                  label="Search Patient"
+                  type="text"
+                  placeholder="Enter phone number to search"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2 items-end">
+                <GlassButton
+                  onClick={handleSearch}
+                  loading={isLoading}
+                  className="gradient-receptionist text-white"
+                  disabled={!phone.trim()}
+                >
+                  <Search size={18} />
+                  Search
+                </GlassButton>
+                <GlassButton
+                  onClick={() => {
+                    setFormData(initialForm);
+                    setPatient(null);
+                    setEditMode(false);
+                    setShowRegisterForm(true);
+                    setNotFound(false);
+                  }}
+                  variant="success"
+                  className="bg-green-500 text-white"
+                >
+                  <UserPlus size={18} />
+                  Register
+                </GlassButton>
+              </div>
+            </div>
+
+            {notFound && (
+              <div className="mt-4 flex items-center gap-2 text-red-600 font-medium">
+                <AlertCircle size={20} />
+                Patient not found. Please register them below.
+              </div>
+            )}
+          </div>
+
+          {/* Patient Details View */}
+          {patient && !editMode && (
+            <GlassCard className="mb-6 animate-fadeInUp animate-stagger-2" background="glass">
+              <div className="mb-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+                  <User className="w-5 h-5 mr-2 text-emerald-600" />
+                  Patient Details
+                </h3>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                <InfoRow icon={<Info />} label="Patient ID" value={patient.patientId} />
+                <InfoRow icon={<User />} label="Name" value={patient.name} />
+                <InfoRow icon={<Phone />} label="Phone" value={patient.phone} />
+                <InfoRow icon={<Mail />} label="Email" value={patient.email} />
+                <InfoRow icon={<Calendar />} label="Age" value={patient.age} />
+                <InfoRow icon={<Info />} label="Gender" value={patient.gender} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <InfoRow 
+                  icon={<HeartPulse />} 
+                  label="Medical History" 
+                  value={patient.medicalHistory || 'No medical history recorded'} 
+                />
+                <InfoRow
+                  icon={<Phone />}
+                  label="Emergency Contact"
+                  value={`${patient.emergencyContact?.name || 'Not provided'} - ${patient.emergencyContact?.phone || 'Not provided'}`}
+                />
+              </div>
+
+              <GlassButton
+                onClick={() => {
+                  setEditMode(true);
+                  setFormData({
+                    ...patient,
+                    emergencyContact: {
+                      name: patient.emergencyContact?.name || '',
+                      phone: patient.emergencyContact?.phone || ''
+                    }
+                  });
+                }}
+                variant="warning"
+                className="bg-yellow-500 text-white"
+              >
+                <Pencil size={18} />
+                Edit Patient
+              </GlassButton>
+            </GlassCard>
+          )}
+
+          {/* Register or Edit Form */}
+          {(editMode || showRegisterForm) && (
+            <PatientForm
+              formData={formData}
+              handleChange={handleChange}
+              onSubmit={editMode ? handleEditSave : handleRegister}
+              submitText={editMode ? 'Save Changes' : 'Register Patient'}
+              icon={editMode ? <Save /> : <UserPlus />}
+              isLoading={isLoading}
+            />
+          )}
+        </GlassCard>
+      </div>
     </div>
   );
 };
 
 const InfoRow = ({ icon, label, value }) => (
-  <div className="flex items-center space-x-2">
-    {icon}
-    <span className="font-semibold">{label}:</span>
-    <span className="text-gray-800">{value || '-'}</span>
+  <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
+    <div className="text-emerald-600 mt-1">{icon}</div>
+    <div className="flex-1">
+      <span className="text-sm font-medium text-gray-600 block">{label}</span>
+      <span className="text-gray-800">{value || 'Not provided'}</span>
+    </div>
   </div>
 );
 
-const PatientForm = ({ formData, handleChange, onSubmit, submitText, icon }) => (
-  <form onSubmit={(e) => {
-    e.preventDefault();
-    onSubmit();
-  }} className="space-y-4 border-t pt-6">
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <input className="p-3 border rounded-lg" name="name" value={formData.name} onChange={handleChange} placeholder="Name" />
-      <input className="p-3 border rounded-lg" name="phone" value={formData.phone} onChange={handleChange} placeholder="Phone" />
-      <input className="p-3 border rounded-lg" name="email" value={formData.email} onChange={handleChange} placeholder="Email" />
-      <input className="p-3 border rounded-lg" name="age" value={formData.age} onChange={handleChange} placeholder="Age" />
-      <select className="p-3 border rounded-lg" name="gender" value={formData.gender} onChange={handleChange}>
-        <option value="male">Male</option>
-        <option value="female">Female</option>
-        <option value="other">Other</option>
-      </select>
-      <input className="p-3 border rounded-lg col-span-1 md:col-span-2" name="medicalHistory" value={formData.medicalHistory} onChange={handleChange} placeholder="Medical History" />
-      <input className="p-3 border rounded-lg" name="emergencyContact.name" value={formData.emergencyContact.name} onChange={handleChange} placeholder="Emergency Contact Name" />
-      <input className="p-3 border rounded-lg" name="emergencyContact.phone" value={formData.emergencyContact.phone} onChange={handleChange} placeholder="Emergency Contact Phone" />
+const PatientForm = ({ formData, handleChange, onSubmit, submitText, icon, isLoading }) => (
+  <GlassCard className="animate-fadeInUp animate-stagger-3" background="glass">
+    <div className="mb-6">
+      <h3 className="text-xl font-semibold text-gray-800 mb-2 flex items-center">
+        {icon}
+        <span className="ml-2">{submitText}</span>
+      </h3>
+      <p className="text-gray-600">Fill in the patient information below</p>
     </div>
-    <button type="submit" className="mt-4 bg-blue-600 text-white px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition">
-      {icon} {submitText}
-    </button>
-  </form>
+
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      onSubmit();
+    }} className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <GlassInput
+          icon={User}
+          label="Full Name"
+          name="name"
+          value={formData.name}
+          onChange={handleChange}
+          placeholder="Enter patient's full name"
+          required
+        />
+        <GlassInput
+          icon={Phone}
+          label="Phone Number"
+          name="phone"
+          value={formData.phone}
+          onChange={handleChange}
+          placeholder="Enter contact number"
+          required
+        />
+        <GlassInput
+          icon={Mail}
+          label="Email Address"
+          name="email"
+          type="email"
+          value={formData.email}
+          onChange={handleChange}
+          placeholder="Enter email address"
+          required
+        />
+        <GlassInput
+          icon={Calendar}
+          label="Age"
+          name="age"
+          type="number"
+          value={formData.age}
+          onChange={handleChange}
+          placeholder="Enter age"
+          required
+        />
+        
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">Gender</label>
+          <select
+            name="gender"
+            value={formData.gender}
+            onChange={handleChange}
+            className="w-full px-4 py-3 input-glass rounded-xl border border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/80"
+          >
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">Medical History</label>
+          <textarea
+            name="medicalHistory"
+            value={formData.medicalHistory}
+            onChange={handleChange}
+            placeholder="Enter medical history (optional)"
+            rows="3"
+            className="w-full px-4 py-3 input-glass rounded-xl border border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/80"
+          />
+        </div>
+
+        <GlassInput
+          icon={User}
+          label="Emergency Contact Name"
+          name="emergencyContact.name"
+          value={formData.emergencyContact.name}
+          onChange={handleChange}
+          placeholder="Emergency contact name"
+        />
+        <GlassInput
+          icon={Phone}
+          label="Emergency Contact Phone"
+          name="emergencyContact.phone"
+          value={formData.emergencyContact.phone}
+          onChange={handleChange}
+          placeholder="Emergency contact phone"
+        />
+      </div>
+
+      <div className="flex justify-end pt-4">
+        <GlassButton
+          type="submit"
+          variant="success"
+          size="lg"
+          loading={isLoading}
+          className="gradient-receptionist text-white"
+        >
+          {icon}
+          {submitText}
+        </GlassButton>
+      </div>
+    </form>
+  </GlassCard>
 );
 
 export default PatientManager;

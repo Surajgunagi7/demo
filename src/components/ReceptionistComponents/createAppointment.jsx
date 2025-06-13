@@ -1,11 +1,14 @@
 import { useForm } from "react-hook-form";
 import { useSelector } from "react-redux";
 import { Calendar, Clock, User, Mail, Phone, Stethoscope, FileText } from 'lucide-react';
-import {patientService} from '../../services/patientService'
+import { patientService } from '../../services/patientService';
 import { appointmentService } from "../../services/appointmentsService";
+import { GlassCard, GlassButton, GlassInput } from '../common';
+import toast from 'react-hot-toast';
+import { useState } from 'react';
 
 const CreateAppointment = () => {
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, reset, formState: { errors } } = useForm({
     defaultValues: {
       patientName: "",
       age: "",
@@ -18,160 +21,194 @@ const CreateAppointment = () => {
     }
   });
 
+  const [isLoading, setIsLoading] = useState(false);
   const doctors = useSelector((state) => state.doctor.doctors);
   
   const onSubmit = async (data) => {
-      try {
-          const patientDetails = {
-            name: data.patientName,
-            age: data.age,
-            email: data.email,
-            phone: data.phone,
-        };
+    setIsLoading(true);
+    try {
+      const patientDetails = {
+        name: data.patientName,
+        age: data.age,
+        email: data.email,
+        phone: data.phone,
+      };
 
-        const patientRes = await patientService.createOrFindPatient(patientDetails);
-        const patientId = patientRes.data.data._id;
+      const patientRes = await patientService.createOrFindPatient(patientDetails);
+      const patientId = patientRes.data.data._id;
+    
+      const appointmentPayload = {
+        patient: patientId,
+        doctor: data.doctorId,
+        reason: data.reason,
+        dateTime: `${data.appointmentDate}T${data.appointmentTime}:00.000Z`,
+        status: "pending",
+        paymentStatus: "pending"
+      };
+
+      const response = await appointmentService.createAppointment(appointmentPayload);
+      console.log("Appointment created successfully:", response);
       
-        const appointmentPayload = {
-          patient: patientId,
-          doctor: data.doctorId,
-          reason: data.reason,
-          dateTime: `${data.appointmentDate}T${data.appointmentTime}:00.000Z`,
-          status: "pending",
-          paymentStatus: "pending"
-        };
-
-        const response = await appointmentService.createAppointment(appointmentPayload);
-        console.log("Appointment created successfully:", response);
-        
-        alert("Appointment created successfully!");
-      } catch (error) {
-        console.error("Error creating appointment:", error);
-      }
+      toast.success("Appointment created successfully!");
+      reset();
+    } catch (error) {
+      console.error("Error creating appointment:", error);
+      toast.error("Failed to create appointment. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const InputField = ({ icon: Icon, ...props }) => (
-    <div className="relative">
-      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <Icon className="h-5 w-5 text-gray-400" />
-      </div>
-      <input
-        {...register(props.name, {
-          required: "This field is required",
-          ...(props.name === "email" && {
-            pattern: {
-              value: /\S+@\S+\.\S+/,
-              message: "Please enter a valid email"
-            }
-          }),
-          ...(props.name === "age" && {
-            min: { value: 0, message: "Age must be positive" },
-            max: { value: 150, message: "Please enter a valid age" }
-          })
-        })}
-        {...props}
-        className={`w-full pl-10 pr-4 py-3 bg-gray-50 border ${
-          errors[props.name] ? 'border-red-300' : 'border-gray-200'
-        } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors`}
-      />
-      {errors[props.name] && (
-        <p className="mt-1 text-sm text-red-500">{errors[props.name].message}</p>
-      )}
-    </div>
-  );
-
   return (
-    <div className="max-w-4xl mx-auto p-8">
-      <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="border-b border-gray-200 bg-gray-50 px-8 py-4">
-          <h2 className="text-xl font-semibold text-gray-900">Create New Appointment</h2>
-          <p className="mt-1 text-sm text-gray-500">Fill in the information below to schedule a new appointment</p>
-        </div>
+    <div className="min-h-screen bg-gray-50 relative">
+      {/* Background */}
+      <div className="absolute inset-0 gradient-receptionist opacity-5"></div>
+      
+      <div className="relative z-10 p-6">
+        <GlassCard className="max-w-4xl mx-auto animate-fadeInUp">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Create New Appointment</h2>
+            <p className="text-gray-600">Fill in the information below to schedule a new appointment</p>
+          </div>
 
-        <div className="p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Patient Information</h3>
-                <div className="space-y-4">
-                  <InputField icon={User} type="text" name="patientName" placeholder="Patient Name" />
-                  <InputField icon={User} type="number" name="age" placeholder="Age" />
-                  <InputField icon={Mail} type="email" name="email" placeholder="Email Address" />
-                  <InputField icon={Phone} type="tel" name="phone" placeholder="Phone Number" />
-                </div>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+            {/* Patient Information Section */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <User className="w-5 h-5 mr-2 text-emerald-600" />
+                Patient Information
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <GlassInput
+                  icon={User}
+                  label="Patient Name"
+                  type="text"
+                  placeholder="Enter patient's full name"
+                  {...register("patientName", { required: "Patient name is required" })}
+                  error={errors.patientName?.message}
+                />
+                <GlassInput
+                  icon={User}
+                  label="Age"
+                  type="number"
+                  placeholder="Enter patient's age"
+                  {...register("age", { 
+                    required: "Age is required",
+                    min: { value: 0, message: "Age must be positive" },
+                    max: { value: 150, message: "Please enter a valid age" }
+                  })}
+                  error={errors.age?.message}
+                />
+                <GlassInput
+                  icon={Mail}
+                  label="Email Address"
+                  type="email"
+                  placeholder="Enter email address"
+                  {...register("email", { 
+                    required: "Email is required",
+                    pattern: {
+                      value: /\S+@\S+\.\S+/,
+                      message: "Please enter a valid email"
+                    }
+                  })}
+                  error={errors.email?.message}
+                />
+                <GlassInput
+                  icon={Phone}
+                  label="Phone Number"
+                  type="tel"
+                  placeholder="Enter contact number"
+                  {...register("phone", { required: "Phone number is required" })}
+                  error={errors.phone?.message}
+                />
               </div>
             </div>
 
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Appointment Details</h3>
-                <div className="space-y-4">
+            {/* Appointment Details Section */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <Calendar className="w-5 h-5 mr-2 text-emerald-600" />
+                Appointment Details
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Doctor</label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <Stethoscope className="h-5 w-5 text-gray-400" />
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10">
+                      <Stethoscope size={18} />
                     </div>
                     <select
                       {...register("doctorId", { required: "Please select a doctor" })}
-                      className={`w-full pl-10 pr-4 py-3 bg-gray-50 border ${
-                        errors.doctorId ? 'border-red-300' : 'border-gray-200'
-                      } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors`}
+                      className={`w-full pl-10 pr-4 py-3 input-glass rounded-xl border border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/80 ${
+                        errors.doctorId ? 'border-red-300' : ''
+                      }`}
                     >
                       <option value="">Select Doctor</option>
                       {doctors.map((doc) => (
                         <option key={doc._id} value={doc._id}>
-                          Dr. {doc.name}
+                          Dr. {doc.name} - {doc.specialization}
                         </option>
                       ))}
                     </select>
-                    {errors.doctorId && (
-                      <p className="mt-1 text-sm text-red-500">{errors.doctorId.message}</p>
-                    )}
                   </div>
+                  {errors.doctorId && (
+                    <p className="text-sm text-red-500">{errors.doctorId.message}</p>
+                  )}
+                </div>
 
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Reason for Visit</label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <FileText className="h-5 w-5 text-gray-400" />
+                    <div className="absolute left-3 top-3 text-gray-400 pointer-events-none z-10">
+                      <FileText size={18} />
                     </div>
                     <textarea
-                      {...register("reason", { required: "This field is required" })}
-                      placeholder="Reason for Visit"
+                      {...register("reason", { required: "Reason is required" })}
+                      placeholder="Describe the reason for visit"
                       rows="3"
-                      className={`w-full pl-10 pr-4 py-3 bg-gray-50 border ${
-                        errors.reason ? 'border-red-300' : 'border-gray-200'
-                      } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors`}
+                      className={`w-full pl-10 pr-4 py-3 input-glass rounded-xl border border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/80 ${
+                        errors.reason ? 'border-red-300' : ''
+                      }`}
                     />
-                    {errors.reason && (
-                      <p className="mt-1 text-sm text-red-500">{errors.reason.message}</p>
-                    )}
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <InputField icon={Calendar} type="date" name="appointmentDate" />
-                    <InputField icon={Clock} type="time" name="appointmentTime" />
-                  </div>
+                  {errors.reason && (
+                    <p className="text-sm text-red-500">{errors.reason.message}</p>
+                  )}
                 </div>
+
+                <GlassInput
+                  icon={Calendar}
+                  label="Appointment Date"
+                  type="date"
+                  {...register("appointmentDate", { required: "Date is required" })}
+                  error={errors.appointmentDate?.message}
+                />
+
+                <GlassInput
+                  icon={Clock}
+                  label="Appointment Time"
+                  type="time"
+                  {...register("appointmentTime", { required: "Time is required" })}
+                  error={errors.appointmentTime?.message}
+                />
               </div>
             </div>
-          </div>
-        </div>
 
-        <div className="px-8 py-6 bg-gray-50 border-t border-gray-200">
-          <div className="flex justify-end">
-            <button
-              type="button"
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 mr-4"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Create Appointment
-            </button>
-          </div>
-        </div>
-      </form>
+            {/* Submit Button */}
+            <div className="flex justify-end pt-6">
+              <GlassButton
+                type="submit"
+                variant="success"
+                size="lg"
+                loading={isLoading}
+                className="gradient-receptionist text-white"
+              >
+                Create Appointment
+              </GlassButton>
+            </div>
+          </form>
+        </GlassCard>
+      </div>
     </div>
   );
 };

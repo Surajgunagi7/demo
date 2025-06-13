@@ -1,168 +1,214 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useDispatch } from "react-redux";
+import { User, Mail, Lock, Phone, Stethoscope, GraduationCap, DollarSign, Upload, Camera } from 'lucide-react';
 import { addDoctor } from "../../../store/doctorSlice";
 import { doctorService } from "../../../services/adminDashboardService";
+import { GlassCard, GlassButton, GlassInput, LoadingOverlay } from '../../common';
 import toast from "react-hot-toast";
 
 const AddDoctor = () => {
-  const { register, handleSubmit, reset } = useForm();
+  const { register, handleSubmit, reset, formState: { errors } } = useForm();
+  const [isLoading, setIsLoading] = useState(false);
+  const [profilePicture, setProfilePicture] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const dispatch = useDispatch();
 
+  // Handle profile picture upload
+  const handleProfilePictureChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setProfilePicture(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const onSubmit = async (data) => {
-    const formattedData = {
-      name: data.name,
-      email: data.email,
-      password: data.password,
-      specialization: data.specialization,
-      phone: data.phone,
-      role: "doctor",
-      about: {
+    setIsLoading(true);
+    try {
+      // Updated to match backend requirements - removed about/description fields, added new fields
+      const formattedData = {
+        name: data.name,
+        email: data.email,
+        password: data.password,
+        specialization: data.specialization,
+        phone: data.phone,
+        role: "doctor",
         experience: data.experience,
         education: data.education,
-        description: data.about,
-      },
-    };
-    try {
+        consultationFee: parseFloat(data.consultationFee), // Added consultation fee
+        available: data.available || false, // Added availability checkbox, default false
+        profilePicture: profilePicture ? previewUrl : null, // Added profile picture
+      };
+
       const response = await doctorService.addDoctor(formattedData);
       console.log("Doctor added successfully:", response.data);
       
       dispatch(addDoctor(response.data));
       toast.success("Doctor added successfully!");
       reset();
+      setProfilePicture(null);
+      setPreviewUrl(null);
 
     } catch (error) {
       console.error("Error adding doctor:", error.message);
-      alert("Failed to add doctor. Please try again.");
+      toast.error("Failed to add doctor. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <form
-      onSubmit={handleSubmit(onSubmit)}
-      className="bg-white p-6 shadow rounded-md max-h-screen"
-    >
-      <h2 className="text-xl font-bold mb-6">Add Doctor</h2>
-      <div className="flex justify-between">
-        <div className="w-full mr-10">
-          <div className="mb-5">
-            <label className="block font-medium text-lg mb-2" htmlFor="name">
-              Name
-            </label>
-            <input
-              type="text"
-              id="name"
-              {...register("name", { required: true })}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              placeholder="Enter doctor's name"
-            />
+    <LoadingOverlay isLoading={isLoading} message="Adding doctor...">
+      <GlassCard className="animate-fadeInUp">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Add New Doctor</h2>
+          <p className="text-gray-600">Create a new doctor account</p>
+        </div>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Profile Picture Upload */}
+          <div className="flex justify-center mb-6">
+            <div className="relative">
+              <div className="w-32 h-32 rounded-full border-4 border-blue-100 overflow-hidden bg-gray-100 flex items-center justify-center">
+                {previewUrl ? (
+                  <img src={previewUrl} alt="Profile preview" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-16 h-16 text-gray-400" />
+                )}
+              </div>
+              <label className="absolute bottom-0 right-0 bg-blue-500 p-2 rounded-full text-white hover:bg-blue-600 transition-colors cursor-pointer">
+                <Camera size={16} />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfilePictureChange}
+                  className="hidden"
+                />
+              </label>
+            </div>
           </div>
-          <div className="mb-5">
-            <label className="block font-medium mb-2 text-lg" htmlFor="email">
-              Email
-            </label>
-            <input
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <GlassInput
+              icon={User}
+              label="Full Name"
+              type="text"
+              placeholder="Enter doctor's full name"
+              {...register('name', { required: 'Name is required' })}
+              error={errors.name?.message}
+            />
+
+            <GlassInput
+              icon={Mail}
+              label="Email Address"
               type="email"
-              id="email"
-              {...register("email", { required: true })}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              placeholder="Enter email"
+              placeholder="Enter email address"
+              {...register('email', { 
+                required: 'Email is required',
+                pattern: {
+                  value: /\S+@\S+\.\S+/,
+                  message: 'Please enter a valid email'
+                }
+              })}
+              error={errors.email?.message}
             />
-          </div>
-          <div className="mb-5">
-            <label
-              className="block font-medium mb-2 text-lg"
-              htmlFor="password"
-            >
-              password
-            </label>
-            <input
+
+            <GlassInput
+              icon={Lock}
+              label="Password"
               type="password"
-              id="password"
-              {...register("password", { required: true })}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              placeholder="Enter password"
+              placeholder="Enter secure password"
+              {...register('password', { 
+                required: 'Password is required',
+                minLength: {
+                  value: 6,
+                  message: 'Password must be at least 6 characters'
+                }
+              })}
+              error={errors.password?.message}
             />
-          </div>
-          <div className="mb-5">
-            <label
-              className="block font-medium text-lg mb-2"
-              htmlFor="specialization"
-            >
-              Specialization
-            </label>
-            <input
-              type="text"
-              id="specialization"
-              {...register("specialization", { required: true })}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              placeholder="Enter specialization"
-            />
-          </div>
-        </div>
-        <div className="w-full">
-          <div className="mb-5">
-            <label
-              className="block font-medium mb-2 text-lg"
-              htmlFor="experience"
-            >
-              Experience
-            </label>
-            <input
-              type="text"
-              id="experience"
-              {...register("experience", { required: true })}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              placeholder="Enter years of experience"
-            />
-          </div>
-          <div className="mb-5">
-            <label className="block font-medium mb-2 text-lg" htmlFor="phone">
-              Phone Number
-            </label>
-            <input
-              type="text"
-              id="phone"
-              {...register("phone", { required: true })}
-              className="w-full border border-gray-300 rounded px-3 py-2"
+
+            <GlassInput
+              icon={Phone}
+              label="Phone Number"
+              type="tel"
               placeholder="Enter contact number"
+              {...register('phone', { required: 'Phone number is required' })}
+              error={errors.phone?.message}
             />
-          </div>
-          <div className="mb-5">
-            <label
-              className="block font-medium mb-2 text-lg"
-              htmlFor="education"
-            >
-              Education
-            </label>
-            <input
+
+            <GlassInput
+              icon={Stethoscope}
+              label="Specialization"
               type="text"
-              id="education"
-              {...register("education", { required: true })}
-              className="w-full border border-gray-300 rounded px-3 py-2"
+              placeholder="Enter specialization"
+              {...register('specialization', { required: 'Specialization is required' })}
+              error={errors.specialization?.message}
+            />
+
+            <GlassInput
+              icon={GraduationCap}
+              label="Experience (Years)"
+              type="text"
+              placeholder="Enter years of experience"
+              {...register('experience', { required: 'Experience is required' })}
+              error={errors.experience?.message}
+            />
+
+            <GlassInput
+              icon={GraduationCap}
+              label="Education"
+              type="text"
               placeholder="Enter education details"
+              {...register('education', { required: 'Education is required' })}
+              error={errors.education?.message}
+            />
+
+            <GlassInput
+              icon={DollarSign}
+              label="Consultation Fee (₹)"
+              type="number"
+              placeholder="Enter consultation fee"
+              {...register('consultationFee', { 
+                required: 'Consultation fee is required',
+                min: { value: 0, message: 'Fee must be positive' }
+              })}
+              error={errors.consultationFee?.message}
             />
           </div>
-          <div className="mb-5">
-            <label className="block font-medium mb-2 text-lg" htmlFor="about">
-              About
+
+          {/* Availability Checkbox */}
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="available"
+              {...register('available')}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <label htmlFor="available" className="text-sm font-medium text-gray-700">
+              Doctor is available for appointments
             </label>
-            <textarea
-              id="about"
-              {...register("about", { required: true })}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-              placeholder="Write a short description about the doctor"
-              rows="4"
-            ></textarea>
           </div>
-        </div>
-      </div>
-      <button
-        type="submit"
-        className="bg-green-500 text-white px-6 py-3 mt-5 rounded hover:bg-green-600"
-      >
-        Add Doctor
-      </button>
-    </form>
+
+          <div className="flex justify-end pt-4">
+            <GlassButton
+              type="submit"
+              variant="success"
+              size="lg"
+              loading={isLoading}
+              className="text-black"
+            >
+              Add Doctor
+            </GlassButton>
+          </div>
+        </form>
+      </GlassCard>
+    </LoadingOverlay>
   );
 };
 
